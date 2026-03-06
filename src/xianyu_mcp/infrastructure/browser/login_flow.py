@@ -1,5 +1,6 @@
 """Login flow management for Xianyu."""
 
+import io
 import time
 from enum import Enum
 from pathlib import Path
@@ -20,6 +21,43 @@ from xianyu_mcp.logging import get_logger
 
 logger = get_logger("login_flow")
 
+try:
+    from PIL import Image
+except ImportError:  # pragma: no cover - optional dependency fallback
+    Image = None
+
+
+def _compress_image_bytes(image_bytes: bytes, max_edge: int = 360) -> bytes:
+    """Best-effort image optimization for QR screenshots."""
+    if Image is None:
+        return image_bytes
+
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            width, height = img.size
+            longest_edge = max(width, height)
+            if longest_edge > max_edge:
+                scale = max_edge / float(longest_edge)
+                new_size = (
+                    max(1, int(width * scale)),
+                    max(1, int(height * scale)),
+                )
+                resampling = getattr(Image, "Resampling", Image).NEAREST
+                img = img.resize(new_size, resampling)
+
+            if img.mode not in {"L", "1"}:
+                img = img.convert("L")
+
+            output = io.BytesIO()
+            img.save(output, format="PNG", optimize=True, compress_level=9)
+            optimized = output.getvalue()
+            if optimized and len(optimized) < len(image_bytes):
+                return optimized
+    except Exception as e:
+        logger.debug(f"Image compression skipped: {e}")
+
+    return image_bytes
+
 
 def _save_image_to_file(image_bytes: bytes, filename: str) -> str:
     """Save image bytes to file and return the file path."""
@@ -27,7 +65,8 @@ def _save_image_to_file(image_bytes: bytes, filename: str) -> str:
     save_dir = Path(settings.screenshot_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
     file_path = save_dir / filename
-    file_path.write_bytes(image_bytes)
+    optimized_bytes = _compress_image_bytes(image_bytes)
+    file_path.write_bytes(optimized_bytes)
     logger.info(f"Image saved to: {file_path}")
     return str(file_path.absolute())
 
@@ -155,7 +194,7 @@ class LoginFlow:
                     if screenshot_bytes:
                         filename = f"login_qrcode_{int(time.time())}.png"
                         file_path = _save_image_to_file(screenshot_bytes, filename)
-                        logger.info(f"QR code saved, size: {len(screenshot_bytes)} bytes")
+                        logger.info(f"QR code saved, original size: {len(screenshot_bytes)} bytes")
                         return (
                             file_path,
                             "Login QR code saved. Ask user to scan with Xianyu app, "

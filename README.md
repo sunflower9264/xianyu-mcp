@@ -7,7 +7,7 @@
 ## 它能做什么
 
 - 登录闲鱼账号，获取扫码二维码并轮询登录结果
-- 登录二维码以 base64 返回，便于客户端直接展示
+- 登录二维码以 MCP `image` 内容块返回，客户端可直接展示
 - 发布商品、下架商品、删除商品
 - 添加收藏、取消收藏
 - 通过 `resources` / `resource templates` 读取商品、收藏、我的商品、卖家主页等数据
@@ -182,8 +182,8 @@ http://127.0.0.1:18000/mcp
 ### 账号登录
 
 - `check_login_status`：检查当前是否已登录
-- `get_login_qrcode`：获取登录二维码（返回 `qrcode_base64`）
-- `check_login_scan_result`：检查扫码结果（人脸验证场景返回 `qrcode_base64`）
+- `get_login_qrcode`：获取登录二维码（返回 MCP `image` 内容块）
+- `check_login_scan_result`：检查扫码结果（人脸验证场景返回 MCP `image` 内容块）
 - `logout`：退出登录并清理本地会话
 
 ### 收藏管理

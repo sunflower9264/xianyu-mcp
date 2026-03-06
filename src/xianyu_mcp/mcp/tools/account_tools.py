@@ -1,9 +1,13 @@
 """Account-related MCP tools."""
 
 import base64
+import json
+import mimetypes
 import time
 from pathlib import Path
 from typing import Any
+
+from mcp.types import ImageContent, TextContent
 
 from xianyu_mcp.infrastructure.browser import (
     get_browser_manager,
@@ -23,36 +27,37 @@ LOGIN_TIMEOUT_SECONDS = 300  # 5 minutes
 def _build_qrcode_response(
     payload: dict[str, Any],
     image_path: str | None,
-) -> dict[str, Any]:
-    """Attach QR code base64 payload while keeping local screenshot artifacts."""
+) -> list[TextContent | ImageContent]:
+    """Build MCP text/image content blocks for QR-code style responses."""
     if not image_path:
         payload["has_image"] = False
-        payload["qrcode_base64"] = None
         payload["image_mime_type"] = None
-        return payload
+        return [TextContent(type="text", text=json.dumps(payload, ensure_ascii=False))]
 
     try:
         file_path = Path(image_path).resolve()
         if not file_path.exists():
             payload["has_image"] = False
-            payload["qrcode_base64"] = None
             payload["image_mime_type"] = None
-            payload["qrcode_note"] = "二维码文件不存在，无法返回 qrcode_base64。"
-            return payload
+            payload["image_error"] = "二维码文件不存在，无法返回图片内容。"
+            return [TextContent(type="text", text=json.dumps(payload, ensure_ascii=False))]
 
         image_bytes = file_path.read_bytes()
+        encoded_data = base64.b64encode(image_bytes).decode("ascii")
+        mime_type = mimetypes.guess_type(file_path.name)[0] or "image/png"
         payload["has_image"] = True
-        payload["qrcode_base64"] = base64.b64encode(image_bytes).decode("ascii")
-        payload["image_mime_type"] = "image/png"
-        payload["qrcode_note"] = "请将 qrcode_base64 按 image/png 展示给用户。"
-        return payload
+        payload["image_mime_type"] = mime_type
+        payload["qrcode_note"] = "请直接展示当前工具返回的 MCP image 内容块。"
+        return [
+            TextContent(type="text", text=json.dumps(payload, ensure_ascii=False)),
+            ImageContent(type="image", data=encoded_data, mimeType=mime_type),
+        ]
     except Exception as e:
-        logger.warning(f"Failed to build qrcode base64 payload: {e}")
+        logger.warning(f"Failed to encode QR code image for MCP response: {e}")
         payload["has_image"] = False
-        payload["qrcode_base64"] = None
         payload["image_mime_type"] = None
-        payload["qrcode_base64_error"] = str(e)
-        return payload
+        payload["image_encode_error"] = str(e)
+        return [TextContent(type="text", text=json.dumps(payload, ensure_ascii=False))]
 
 
 async def check_login_status() -> dict[str, Any]:
@@ -85,7 +90,7 @@ async def check_login_status() -> dict[str, Any]:
 
 
 async def get_login_qrcode() -> Any:
-    """获取闲鱼登录二维码，返回二维码 base64。"""
+    """获取闲鱼登录二维码，返回 MCP 文本和图片内容块。"""
     global _qrcode_generated_at
     logger.info("Tool called: get_login_qrcode")
 
@@ -104,7 +109,7 @@ async def get_login_qrcode() -> Any:
             "message": message,
             "status": "qrcode_ready",
             "next_step": (
-                "请直接向用户展示 qrcode_base64 对应的二维码图片。"
+                "请直接向用户展示当前工具返回的二维码图片内容。"
                 "当用户明确回复“已确认扫码”后，调用 check_login_scan_result(user_confirmed_scanned=true)。"
             ),
         }
@@ -119,7 +124,7 @@ async def get_login_qrcode() -> Any:
 
 
 async def check_login_scan_result(user_confirmed_scanned: bool = False) -> Any:
-    """检查扫码登录结果，若触发人脸识别则返回二维码 base64。"""
+    """检查扫码登录结果，若触发人脸识别则返回 MCP 文本和图片内容块。"""
     logger.info(
         "Tool called: check_login_scan_result "
         f"(user_confirmed_scanned={user_confirmed_scanned})"
@@ -168,7 +173,7 @@ async def check_login_scan_result(user_confirmed_scanned: bool = False) -> Any:
 
         if result["status"] == "need_face_verify":
             result["next_step"] = (
-                "登录流程第 3/3 步：请直接向用户展示 qrcode_base64 对应的人脸识别二维码图片。"
+                "登录流程第 3/3 步：请直接向用户展示当前工具返回的人脸识别二维码图片。"
                 "当用户明确回复“已确认扫码”后，再次调用 check_login_scan_result(user_confirmed_scanned=true) 复查。"
             )
         elif result["status"] in {"waiting_scan", "waiting_auto_login"}:
@@ -251,7 +256,7 @@ ACCOUNT_TOOLS = [
     },
     {
         "name": "get_login_qrcode",
-        "description": "登录流程第 1/3 步：获取闲鱼登录二维码并返回 base64（qrcode_base64）。主要返回字段：status、message、has_image、qrcode_base64、image_mime_type。仅当用户明确回复“已确认扫码”后，进入第 2/3 步并调用 check_login_scan_result(user_confirmed_scanned=true)。",
+        "description": "登录流程第 1/3 步：获取闲鱼登录二维码。工具会返回文本内容块，以及可直接展示的 MCP image 内容块。文本主要字段：status、message、has_image、image_mime_type。仅当用户明确回复“已确认扫码”后，进入第 2/3 步并调用 check_login_scan_result(user_confirmed_scanned=true)。",
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -261,7 +266,7 @@ ACCOUNT_TOOLS = [
     },
     {
         "name": "check_login_scan_result",
-        "description": "登录流程第 2/3 步与第 3/3 步共用本工具。第 2/3 步：用户首次扫码并明确回复“已确认扫码”后调用，检查登录状态。第 3/3 步：若返回 status=need_face_verify 且带 qrcode_base64，需展示该二维码并等待用户再次回复“已确认扫码”，然后再次调用本工具复查，直到 login_success 或超时/过期。主要返回字段：status、message、next_step、has_image、qrcode_base64、image_mime_type。",
+        "description": "登录流程第 2/3 步与第 3/3 步共用本工具。第 2/3 步：用户首次扫码并明确回复“已确认扫码”后调用，检查登录状态。第 3/3 步：若返回 status=need_face_verify 且附带 MCP image 内容块，需展示该二维码并等待用户再次回复“已确认扫码”，然后再次调用本工具复查，直到 login_success 或超时/过期。文本主要字段：status、message、next_step、has_image、image_mime_type。",
         "inputSchema": {
             "type": "object",
             "properties": {
