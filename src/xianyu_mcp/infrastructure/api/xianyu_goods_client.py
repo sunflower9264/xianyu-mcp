@@ -87,24 +87,24 @@ class XianyuGoodsApiMixin:
 
         return json.dumps(payload, ensure_ascii=False)
 
-    def _parse_search_result(self, response_text: str) -> list[dict[str, Any]]:
+    def _parse_search_result(self, response_text: str) -> tuple[list[dict[str, Any]], bool]:
         """Parse search API response.
 
         Args:
             response_text: Raw API response text.
 
         Returns:
-            List of product dictionaries.
+            Tuple of (product list, has_more flag).
         """
         # Use unified response parsing
         success, data, _ = self._parse_api_response(response_text, "search")
         if not success or not data:
-            return []
+            return [], False
 
         result_list = data.get("resultList", [])
         if not result_list:
             logger.info("Search returned empty result list")
-            return []
+            return [], False
 
         products = []
         for item in result_list:
@@ -173,8 +173,9 @@ class XianyuGoodsApiMixin:
                 logger.debug(f"Error parsing product item: {e}")
                 continue
 
+        has_more = self._extract_has_more(data)
         logger.info(f"Parsed {len(products)} products from search result")
-        return products
+        return products, bool(has_more) if has_more is not None else False
 
     async def search_goods(
         self,
@@ -271,14 +272,14 @@ class XianyuGoodsApiMixin:
                     "error": "HTTP_ERROR",
                 }
 
-            products = self._parse_search_result(response.text)
+            products, has_more = self._parse_search_result(response.text)
 
             return {
                 "keyword": keyword,
                 "items": products,
                 "total_count": len(products),
                 "page": page_number,
-                "has_more": len(products) >= rows_per_page,
+                "has_more": has_more,
                 "message": f"Found {len(products)} items for '{keyword}'",
             }
 
@@ -380,13 +381,13 @@ class XianyuGoodsApiMixin:
                     "error": "HTTP_ERROR",
                 }
 
-            products = self._parse_home_goods_result(response.text)
+            products, has_more = self._parse_home_goods_result(response.text)
 
             return {
                 "items": products,
                 "total_count": len(products),
                 "page": page_number,
-                "has_more": len(products) >= page_size,
+                "has_more": has_more,
                 "message": f"Got {len(products)} recommended items",
             }
 
@@ -411,7 +412,7 @@ class XianyuGoodsApiMixin:
                 "error": str(e),
             }
 
-    def _parse_home_goods_result(self, response_text: str) -> list[dict[str, Any]]:
+    def _parse_home_goods_result(self, response_text: str) -> tuple[list[dict[str, Any]], bool]:
         """Parse home goods (feed) API response.
 
         The feed API returns data in a different structure from search:
@@ -422,17 +423,17 @@ class XianyuGoodsApiMixin:
             response_text: Raw API response text.
 
         Returns:
-            List of product dictionaries.
+            Tuple of (product list, has_more flag).
         """
         # Use unified response parsing
         success, data, _ = self._parse_api_response(response_text, "home_goods")
         if not success or not data:
-            return []
+            return [], False
 
         card_list = data.get("cardList", [])
         if not card_list:
             logger.info("Home goods returned empty card list")
-            return []
+            return [], False
 
         products = []
         for card in card_list:
@@ -509,8 +510,9 @@ class XianyuGoodsApiMixin:
                 logger.debug(f"Error parsing home goods item: {e}")
                 continue
 
+        has_more = self._extract_has_more(data)
         logger.info(f"Parsed {len(products)} products from home goods result")
-        return products
+        return products, bool(has_more) if has_more is not None else False
 
     async def get_goods_detail(self, item_id: str) -> dict[str, Any]:
         """Get detailed information about a product.

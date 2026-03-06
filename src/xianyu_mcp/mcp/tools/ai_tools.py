@@ -174,6 +174,21 @@ async def build_analysis_prompt(item_id: str) -> dict[str, Any]:
         # 1. Fetch goods detail via API
         api_client = get_api_client()
         goods_detail = await api_client.get_goods_detail(item_id)
+        if not isinstance(goods_detail, dict):
+            return {
+                "success": False,
+                "item_id": item_id,
+                "message": "获取商品详情失败：返回数据格式无效",
+                "error": "INVALID_GOODS_DETAIL",
+            }
+        if goods_detail.get("error"):
+            return {
+                "success": False,
+                "item_id": item_id,
+                "message": f"获取商品详情失败：{goods_detail.get('message', 'unknown error')}",
+                "error": goods_detail.get("error"),
+                "goods_data": goods_detail,
+            }
         logger.info(f"Goods detail fetched: {goods_detail.get('title', 'No title')}")
 
         # 2. Fetch seller profile (currently browser-based, will be API after refactor)

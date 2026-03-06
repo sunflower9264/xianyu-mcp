@@ -278,11 +278,12 @@ class XianyuFavoriteApiMixin:
                 continue
 
         logger.info(f"Parsed {len(items)} favorite items")
+        has_more = self._extract_has_more(data)
         return {
             "items": items,
             "total_count": len(items),
             "page": page_number,
-            "has_more": len(items) >= rows_per_page,
+            "has_more": bool(has_more) if has_more is not None else False,
             "message": f"Got {len(items)} favorite items",
         }
 

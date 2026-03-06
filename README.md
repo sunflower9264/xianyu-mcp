@@ -7,13 +7,14 @@
 ## 它能做什么
 
 - 登录闲鱼账号，获取扫码二维码并轮询登录结果
-- 登录二维码以 MCP `image` 内容块返回，客户端可直接展示
+- 登录二维码会保存到本地 `screenshots/` 目录，并返回可供用户打开的图片文件提示
 - 发布商品、下架商品、删除商品
-- 添加收藏、取消收藏
-- 通过 `resources` / `resource templates` 读取商品、收藏、我的商品、卖家主页等数据
-- 通过 `prompt` 生成商品分析提示词
+- 搜索商品、读取商品详情、读取首页推荐
+- 添加收藏、取消收藏、读取收藏列表
+- 读取我发布的商品列表、读取卖家主页信息
+- 通过 `analyze_goods` 工具生成商品分析提示词和分析上下文数据
 
-当前项目实际注册了 **9 个 MCP tools**。
+当前项目实际注册了 **16 个 MCP tools**。
 
 ## 环境要求
 
@@ -187,44 +188,30 @@ http://127.0.0.1:18000/mcp
 ### 账号登录
 
 - `check_login_status`：检查当前是否已登录
-- `get_login_qrcode`：获取登录二维码（返回 MCP `image` 内容块）
-- `check_login_scan_result`：检查扫码结果（人脸验证场景返回 MCP `image` 内容块）
+- `get_login_qrcode`：获取登录二维码（二维码图片保存到本地 `screenshots/`）
+- `check_login_scan_result`：检查扫码结果（人脸验证时同样返回本地二维码文件提示）
 - `logout`：退出登录并清理本地会话
 
-### 收藏管理
+### 商品查询与收藏
 
+- `search_goods`：按关键词搜索商品（支持价格/排序/快速筛选）
+- `get_home_goods`：读取首页推荐商品
+- `get_goods_detail`：读取商品详情（支持传入商品 ID 或链接）
+- `get_favorites`：读取收藏列表
 - `add_favorite`：收藏商品
 - `remove_favorite`：取消收藏
 
-### 商品管理
+### 发布与我的商品管理
 
+- `get_my_goods`：读取我发布的商品列表
 - `publish_goods`：发布商品
 - `take_down_goods`：下架商品
 - `delete_goods`：删除商品
 
-## Resources / Resource Templates / Prompt
+### 卖家与分析
 
-除了 tools，这个服务还暴露了 MCP context 能力。
-
-### Resources
-
-- `xianyu://account/login-status`
-- `xianyu://goods/home?page_num=1&page_size=30`
-- `xianyu://favorites?page_num=1&page_size=20`
-- `xianyu://my-goods?page_num=1&page_size=20`
-
-### Resource Templates
-
-- `xianyu://goods/detail/{item_id}`
-- `xianyu://goods/search/{keyword}{?page_num,page_size,price_min,price_max,sort_field,sort_value,quick_filters}`
-- `xianyu://goods/home{?page_num,page_size}`
-- `xianyu://favorites{?page_num,page_size}`
-- `xianyu://seller/{user_id}{?include_items,include_ratings}`
-- `xianyu://my-goods{?status,page_num,page_size}`
-
-### Prompt
-
-- `analyze_goods(item_id)`：生成商品风险与价格分析提示词
+- `get_seller_profile`：读取卖家主页信息（默认含商品与评价，最多各 10 条）
+- `analyze_goods`：生成商品风险与价格分析提示词（返回 prompt + 商品/卖家数据）
 
 ## 使用建议
 

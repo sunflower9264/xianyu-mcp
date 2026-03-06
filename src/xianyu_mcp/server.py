@@ -16,6 +16,7 @@ from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.types import (
     AudioContent,
     CallToolResult,
+    EmbeddedResource,
     ImageContent,
     TextContent,
     Tool,

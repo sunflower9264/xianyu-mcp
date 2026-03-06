@@ -210,6 +210,40 @@ class XianyuApiClientBase:
 
         return True, data, ""
 
+    def _extract_has_more(self, data: dict[str, Any]) -> Optional[bool]:
+        """Extract has-more pagination flag from common response fields."""
+        if not isinstance(data, dict):
+            return None
+
+        def _to_bool(value: Any) -> Optional[bool]:
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, (int, float)):
+                return value != 0
+            if isinstance(value, str):
+                normalized = value.strip().lower()
+                if normalized in {"true", "1", "yes", "y"}:
+                    return True
+                if normalized in {"false", "0", "no", "n", ""}:
+                    return False
+            return None
+
+        for key in ("has_more", "hasMore", "hasNext", "hasNextPage", "nextPage", "next_page"):
+            parsed = _to_bool(data.get(key))
+            if parsed is not None:
+                return parsed
+
+        for container_key in ("page", "pageInfo", "pagination", "pager", "pageData"):
+            container = data.get(container_key)
+            if not isinstance(container, dict):
+                continue
+            for key in ("has_more", "hasMore", "hasNext", "hasNextPage", "nextPage", "next_page"):
+                parsed = _to_bool(container.get(key))
+                if parsed is not None:
+                    return parsed
+
+        return None
+
     def _check_cookies_and_token(self) -> tuple[bool, dict[str, Any], str]:
         """Check cookies and token availability.
 

@@ -498,6 +498,14 @@ class XianyuSaleApiMixin:
 
             ok, data, error_msg = self._parse_api_response(response.text, "delete")
             if ok:
+                api_success = data.get("success", True) if isinstance(data, dict) else True
+                if api_success is False:
+                    return {
+                        "success": False,
+                        "item_id": item_id,
+                        "message": "API returned success=false for delete",
+                        "error": "DELETE_FAILED",
+                    }
                 return {
                     "success": True,
                     "item_id": item_id,
