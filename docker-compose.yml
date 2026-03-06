@@ -1,0 +1,25 @@
+services:
+  xianyu-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PLAYWRIGHT_BASE_IMAGE: ${PLAYWRIGHT_BASE_IMAGE:-mcr.microsoft.com/playwright/python:v1.58.0-noble}
+    container_name: xianyu-mcp
+    ipc: host
+    ports:
+      - "18000:18000"
+    env_file:
+      - .env
+    environment:
+      MCP_TRANSPORT: streamable_http
+      MCP_HTTP_HOST: 0.0.0.0
+      MCP_HTTP_PORT: 18000
+      MCP_STREAMABLE_HTTP_PATH: /mcp
+      HEADLESS: "true"
+      SCREENSHOT_DIR: /app/screenshots
+      USER_DATA_DIR: /app/browser_data
+    volumes:
+      - ./browser_data:/app/browser_data
+      - ./screenshots:/app/screenshots
+    restart: unless-stopped
