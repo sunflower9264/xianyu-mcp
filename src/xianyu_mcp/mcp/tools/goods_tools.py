@@ -375,7 +375,7 @@ async def get_favorites(
 GOODS_TOOLS = [
     {
         "name": "add_favorite",
-        "description": "将指定商品加入闲鱼收藏。",
+        "description": "将指定商品加入闲鱼收藏。主要返回字段：success、item_id、message（失败时可能包含 error）。",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -390,7 +390,7 @@ GOODS_TOOLS = [
     },
     {
         "name": "remove_favorite",
-        "description": "将指定商品从闲鱼收藏中移除。",
+        "description": "将指定商品从闲鱼收藏中移除。主要返回字段：success、item_id、message（失败时可能包含 error）。",
         "inputSchema": {
             "type": "object",
             "properties": {

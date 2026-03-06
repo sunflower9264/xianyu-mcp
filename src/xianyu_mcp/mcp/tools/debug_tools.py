@@ -1,11 +1,7 @@
 """Debug-related MCP tools."""
 
-import base64
-import mimetypes
 from pathlib import Path
 from typing import Any, Optional
-
-from mcp.types import ImageContent, TextContent
 
 from xianyu_mcp.config import get_settings
 from xianyu_mcp.infrastructure.browser import (
@@ -20,44 +16,31 @@ logger = get_logger("debug_tools")
 def _build_image_response(
     payload: dict[str, Any],
     image_path: str | None,
-) -> tuple[list[TextContent | ImageContent], dict[str, Any]] | dict[str, Any]:
-    """Build MCP image content response while keeping structured fallback fields."""
+) -> dict[str, Any]:
+    """Attach local screenshot path to payload."""
     if not image_path:
         payload["has_image"] = False
+        payload["image_path"] = None
         return payload
 
     try:
-        file_path = Path(image_path)
-        image_bytes = file_path.read_bytes()
-        encoded_data = base64.b64encode(image_bytes).decode("ascii")
-        mime_type = mimetypes.guess_type(file_path.name)[0] or "image/png"
-        if not mime_type.startswith("image/"):
-            mime_type = "image/png"
-
-        payload["has_image"] = True
+        file_path = Path(image_path).resolve()
+        payload["has_image"] = file_path.exists()
         payload["image_path"] = str(file_path.resolve())
-        payload["image_mime_type"] = mime_type
-        payload["image_base64"] = encoded_data
-        payload["image_data_url"] = f"data:{mime_type};base64,{encoded_data}"
-        message = str(payload.get("message", "Screenshot captured successfully."))
-        return (
-            [
-                TextContent(type="text", text=message),
-                ImageContent(type="image", data=encoded_data, mimeType=mime_type),
-            ],
-            payload,
-        )
+        payload["image_file_note"] = "请将 image_path 对应的本地图片文件直接展示给用户。"
+        return payload
     except Exception as e:
-        logger.warning(f"Failed to encode screenshot image for MCP image content: {e}")
+        logger.warning(f"Failed to resolve screenshot path: {e}")
         payload["has_image"] = False
-        payload["image_encode_error"] = str(e)
+        payload["image_path"] = None
+        payload["image_path_error"] = str(e)
         return payload
 
 
 async def screenshot(
     full_page: bool = False,
     url: Optional[str] = None,
-) -> tuple[list[TextContent | ImageContent], dict[str, Any]] | dict[str, Any]:
+) -> dict[str, Any]:
     """
     Take a screenshot of a browser page.
 
@@ -105,7 +88,7 @@ async def screenshot(
 DEBUG_TOOLS = [
     {
         "name": "screenshot",
-        "description": "截取浏览器页面截图并返回（优先返回 MCP image 内容块，同时附带结构化 image_base64/image_data_url）。传入 url 则打开新标签页截图后关闭；不传 url 则截取登录页面（适用于查看二维码等状态）。",
+        "description": "截取浏览器页面截图并返回本地图片路径（image_path，不返回 base64 或 MCP ImageContent）。主要返回字段：message、full_page、has_image、image_path、image_file_note。请把 image_path 对应文件直接展示给用户。传入 url 则打开新标签页截图后关闭；不传 url 则截取登录页面（适用于查看二维码等状态）。",
         "inputSchema": {
             "type": "object",
             "properties": {

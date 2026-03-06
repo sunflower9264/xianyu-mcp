@@ -1,12 +1,8 @@
 """Account-related MCP tools."""
 
-import base64
-import mimetypes
 import time
 from pathlib import Path
 from typing import Any
-
-from mcp.types import ImageContent, TextContent
 
 from xianyu_mcp.infrastructure.browser import (
     get_browser_manager,
@@ -26,42 +22,24 @@ LOGIN_TIMEOUT_SECONDS = 300  # 5 minutes
 def _build_image_response(
     payload: dict[str, Any],
     image_path: str | None,
-) -> tuple[list[TextContent | ImageContent], dict[str, Any]] | dict[str, Any]:
-    """
-    Build MCP image content response for clients that support image blocks.
-
-    Returns a (content_blocks, structured_payload) tuple when image encoding succeeds,
-    otherwise returns the original payload as structured JSON.
-    """
+) -> dict[str, Any]:
+    """Attach local image path metadata to payload."""
     if not image_path:
         payload["has_image"] = False
+        payload["image_path"] = None
         return payload
 
     try:
-        file_path = Path(image_path)
-        image_bytes = file_path.read_bytes()
-        encoded_data = base64.b64encode(image_bytes).decode("ascii")
-        mime_type = mimetypes.guess_type(file_path.name)[0] or "image/png"
-        if not mime_type.startswith("image/"):
-            mime_type = "image/png"
-
-        payload["has_image"] = True
-        payload["image_mime_type"] = mime_type
-        payload["image_base64"] = encoded_data
-        payload["image_data_url"] = f"data:{mime_type};base64,{encoded_data}"
-
-        message = str(payload.get("message", "Image generated successfully."))
-        return (
-            [
-                TextContent(type="text", text=message),
-                ImageContent(type="image", data=encoded_data, mimeType=mime_type),
-            ],
-            payload,
-        )
+        file_path = Path(image_path).resolve()
+        payload["has_image"] = file_path.exists()
+        payload["image_path"] = str(file_path)
+        payload["image_file_note"] = "请将 image_path 对应的本地图片文件直接展示给用户。"
+        return payload
     except Exception as e:
-        logger.warning(f"Failed to encode image for MCP image content: {e}")
+        logger.warning(f"Failed to resolve image path: {e}")
         payload["has_image"] = False
-        payload["image_encode_error"] = str(e)
+        payload["image_path"] = None
+        payload["image_path_error"] = str(e)
         return payload
 
 
@@ -95,7 +73,7 @@ async def check_login_status() -> dict[str, Any]:
 
 
 async def get_login_qrcode() -> Any:
-    """获取闲鱼登录二维码，优先以 MCP image 内容块返回。"""
+    """获取闲鱼登录二维码，返回本地二维码图片路径。"""
     global _qrcode_generated_at
     logger.info("Tool called: get_login_qrcode")
 
@@ -114,7 +92,7 @@ async def get_login_qrcode() -> Any:
             "message": message,
             "status": "qrcode_ready",
             "next_step": (
-                "请直接向用户展示二维码图片。"
+                "请直接向用户展示 image_path 对应的二维码图片文件。"
                 "当用户明确回复“已确认扫码”后，调用 check_login_scan_result(user_confirmed_scanned=true)。"
             ),
         }
@@ -129,7 +107,7 @@ async def get_login_qrcode() -> Any:
 
 
 async def check_login_scan_result(user_confirmed_scanned: bool = False) -> Any:
-    """检查扫码登录结果，若触发人脸识别则返回 MCP image 内容块。"""
+    """检查扫码登录结果，若触发人脸识别则返回本地图片路径。"""
     logger.info(
         "Tool called: check_login_scan_result "
         f"(user_confirmed_scanned={user_confirmed_scanned})"
@@ -178,7 +156,7 @@ async def check_login_scan_result(user_confirmed_scanned: bool = False) -> Any:
 
         if result["status"] == "need_face_verify":
             result["next_step"] = (
-                "登录流程第 3/3 步：请直接向用户展示本次返回的人脸识别二维码图片。"
+                "登录流程第 3/3 步：请直接向用户展示 image_path 对应的人脸识别二维码图片文件。"
                 "当用户明确回复“已确认扫码”后，再次调用 check_login_scan_result(user_confirmed_scanned=true) 复查。"
             )
         elif result["status"] in {"waiting_scan", "waiting_auto_login"}:
@@ -251,7 +229,7 @@ async def logout() -> dict[str, Any]:
 ACCOUNT_TOOLS = [
     {
         "name": "check_login_status",
-        "description": "检查当前用户是否已登录闲鱼。",
+        "description": "检查当前用户是否已登录闲鱼。返回字段：is_logged_in、message（失败时可能包含 error）。",
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -261,7 +239,7 @@ ACCOUNT_TOOLS = [
     },
     {
         "name": "get_login_qrcode",
-        "description": "登录流程第 1/3 步：获取闲鱼登录二维码并直接展示给用户（优先返回 MCP image 内容块）。仅当用户明确回复“已确认扫码”后，进入第 2/3 步并调用 check_login_scan_result(user_confirmed_scanned=true)。",
+        "description": "登录流程第 1/3 步：获取闲鱼登录二维码并返回本地图片路径（image_path，不返回 base64 或 MCP ImageContent）。主要返回字段：status、message、has_image、image_path、image_file_note。请把 image_path 对应文件直接展示给用户。仅当用户明确回复“已确认扫码”后，进入第 2/3 步并调用 check_login_scan_result(user_confirmed_scanned=true)。",
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -271,7 +249,7 @@ ACCOUNT_TOOLS = [
     },
     {
         "name": "check_login_scan_result",
-        "description": "登录流程第 2/3 步与第 3/3 步共用本工具。第 2/3 步：用户首次扫码并明确回复“已确认扫码”后调用，检查登录状态。第 3/3 步：若返回 status=need_face_verify 且带二维码，需展示该二维码并等待用户再次回复“已确认扫码”，然后再次调用本工具复查，直到 login_success 或超时/过期。",
+        "description": "登录流程第 2/3 步与第 3/3 步共用本工具。第 2/3 步：用户首次扫码并明确回复“已确认扫码”后调用，检查登录状态。第 3/3 步：若返回 status=need_face_verify 且带 image_path，需展示 image_path 对应二维码文件并等待用户再次回复“已确认扫码”，然后再次调用本工具复查，直到 login_success 或超时/过期。主要返回字段：status、message、next_step、has_image、image_path。本工具不返回 base64 或 MCP ImageContent。",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -287,7 +265,7 @@ ACCOUNT_TOOLS = [
     },
     {
         "name": "logout",
-        "description": "退出闲鱼登录状态（清理浏览器会话数据），下次使用需重新登录。",
+        "description": "退出闲鱼登录状态（清理浏览器会话数据），下次使用需重新登录。返回字段：success、message（失败时可能包含 error）。",
         "inputSchema": {
             "type": "object",
             "properties": {},

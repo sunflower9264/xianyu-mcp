@@ -753,7 +753,7 @@ async def delete_goods(item_id: str) -> dict[str, Any]:
 SALE_TOOLS = [
     {
         "name": "publish_goods",
-        "description": "在闲鱼发布新的在售商品，需提供图片、商品描述、价格和发货设置。",
+        "description": "在闲鱼发布新的在售商品，需提供图片、商品描述、价格和发货设置。主要返回字段：success、message、failed_reason（失败时）、form_screenshot、result_screenshot、shipping、images_count 等。",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -768,7 +768,7 @@ SALE_TOOLS = [
                 "images": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "图片列表：支持 http/https URL 或 base64 图片字符串（不支持本地路径，最多 6 张）",
+                    "description": "图片列表：支持 http/https URL 或 base64 图片字符串（不支持本地路径，建议最多 6 张）。",
                 },
                 "shipping_type": {
                     "type": "string",
@@ -787,7 +787,7 @@ SALE_TOOLS = [
     },
     {
         "name": "take_down_goods",
-        "description": "下架已发布的闲鱼商品（从在售列表移除，但保留在账号中）。",
+        "description": "下架已发布的闲鱼商品（从在售列表移除，但保留在账号中）。主要返回字段：success、item_id、message（失败时可能包含 error）。",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -802,7 +802,7 @@ SALE_TOOLS = [
     },
     {
         "name": "delete_goods",
-        "description": "在闲鱼中永久删除已发布商品。",
+        "description": "在闲鱼中永久删除已发布商品。主要返回字段：success、item_id、message（失败时可能包含 error）。",
         "inputSchema": {
             "type": "object",
             "properties": {
