@@ -1,7 +1,6 @@
 """Account-related MCP tools."""
 
 import base64
-import json
 import mimetypes
 import time
 from pathlib import Path
@@ -25,39 +24,28 @@ LOGIN_TIMEOUT_SECONDS = 300  # 5 minutes
 
 
 def _build_qrcode_response(
-    payload: dict[str, Any],
+    text: str,
     image_path: str | None,
 ) -> list[TextContent | ImageContent]:
     """Build MCP text/image content blocks for QR-code style responses."""
     if not image_path:
-        payload["has_image"] = False
-        payload["image_mime_type"] = None
-        return [TextContent(type="text", text=json.dumps(payload, ensure_ascii=False))]
+        return [TextContent(type="text", text=text)]
 
     try:
         file_path = Path(image_path).resolve()
         if not file_path.exists():
-            payload["has_image"] = False
-            payload["image_mime_type"] = None
-            payload["image_error"] = "二维码文件不存在，无法返回图片内容。"
-            return [TextContent(type="text", text=json.dumps(payload, ensure_ascii=False))]
+            return [TextContent(type="text", text=f"{text}\n\n二维码文件不存在，无法返回图片内容。")]
 
         image_bytes = file_path.read_bytes()
         encoded_data = base64.b64encode(image_bytes).decode("ascii")
         mime_type = mimetypes.guess_type(file_path.name)[0] or "image/png"
-        payload["has_image"] = True
-        payload["image_mime_type"] = mime_type
-        payload["qrcode_note"] = "请直接展示当前工具返回的 MCP image 内容块。"
         return [
-            TextContent(type="text", text=json.dumps(payload, ensure_ascii=False)),
+            TextContent(type="text", text=text),
             ImageContent(type="image", data=encoded_data, mimeType=mime_type),
         ]
     except Exception as e:
         logger.warning(f"Failed to encode QR code image for MCP response: {e}")
-        payload["has_image"] = False
-        payload["image_mime_type"] = None
-        payload["image_encode_error"] = str(e)
-        return [TextContent(type="text", text=json.dumps(payload, ensure_ascii=False))]
+        return [TextContent(type="text", text=f"{text}\n\n图片编码失败: {e}")]
 
 
 async def check_login_status() -> dict[str, Any]:
@@ -105,15 +93,13 @@ async def get_login_qrcode() -> Any:
         # Record QR code generation time for timeout tracking
         _qrcode_generated_at = time.monotonic()
 
-        result = {
-            "message": message,
-            "status": "qrcode_ready",
-            "next_step": (
-                "请直接向用户展示当前工具返回的二维码图片内容。"
-                "当用户明确回复“已确认扫码”后，调用 check_login_scan_result(user_confirmed_scanned=true)。"
-            ),
-        }
-        return _build_qrcode_response(result, image_path)
+        result_text = (
+            "请使用闲鱼 App 在 5 分钟内扫码登录。\n\n"
+            "请直接展示当前工具返回的二维码图片，不要手动做 base64 解码或落盘。\n\n"
+            "当用户明确回复“已确认扫码”后，调用 "
+            "check_login_scan_result(user_confirmed_scanned=true)。"
+        )
+        return _build_qrcode_response(result_text, image_path)
 
     except Exception as e:
         logger.error(f"Error in get_login_qrcode: {e}")
@@ -164,35 +150,41 @@ async def check_login_scan_result(user_confirmed_scanned: bool = False) -> Any:
         login_flow = LoginFlow(page)
         status, image_path, message = await login_flow.check_login_scan_status()
 
-        result = {
-            "status": status.value if status else "error",
-            "message": message,
-        }
-        if warning_prefix and result["status"] != "login_success":
-            result["message"] = f"{warning_prefix}{result['message']}"
+        status_value = status.value if status else "error"
+        result_message = message or "登录状态未知。"
+        if warning_prefix and status_value != "login_success":
+            result_message = f"{warning_prefix}{result_message}"
 
-        if result["status"] == "need_face_verify":
-            result["next_step"] = (
-                "登录流程第 3/3 步：请直接向用户展示当前工具返回的人脸识别二维码图片。"
-                "当用户明确回复“已确认扫码”后，再次调用 check_login_scan_result(user_confirmed_scanned=true) 复查。"
+        if status_value == "need_face_verify":
+            result_text = (
+                f"当前状态：{status_value}\n{result_message}\n\n"
+                "请直接展示当前工具返回的人脸识别二维码图片，不要手动做 base64 解码或落盘。\n\n"
+                "当用户明确回复“已确认扫码”后，再次调用 "
+                "check_login_scan_result(user_confirmed_scanned=true)。"
             )
-        elif result["status"] in {"waiting_scan", "waiting_auto_login"}:
-            result["next_step"] = (
-                "等待用户明确回复“已确认扫码”后，"
-                "再次调用 check_login_scan_result(user_confirmed_scanned=true)。"
+        elif status_value in {"waiting_scan", "waiting_auto_login"}:
+            result_text = (
+                f"当前状态：{status_value}\n{result_message}\n\n"
+                "等待用户明确回复“已确认扫码”后，再次调用 "
+                "check_login_scan_result(user_confirmed_scanned=true)。"
             )
-        elif result["status"] == "login_success":
-            result["next_step"] = "登录已完成，可继续调用其他业务工具。"
-        elif result["status"] in {"qr_expired", "timeout"}:
-            result["next_step"] = "请重新调用 get_login_qrcode 获取新的二维码。"
+        elif status_value == "login_success":
+            result_text = f"当前状态：{status_value}\n{result_message}\n\n登录已完成，可继续调用其他业务工具。"
+        elif status_value in {"qr_expired", "timeout"}:
+            result_text = (
+                f"当前状态：{status_value}\n{result_message}\n\n"
+                "请重新调用 get_login_qrcode 获取新的二维码。"
+            )
+        else:
+            result_text = f"当前状态：{status_value}\n{result_message}"
 
         # Close browser on login success
-        if result["status"] == "login_success":
+        if status_value == "login_success":
             _qrcode_generated_at = None
             await browser_manager.close()
             logger.info("Browser closed after successful login")
 
-        return _build_qrcode_response(result, image_path)
+        return _build_qrcode_response(result_text, image_path)
 
     except Exception as e:
         logger.error(f"Error in check_login_scan_result: {e}")
@@ -256,7 +248,7 @@ ACCOUNT_TOOLS = [
     },
     {
         "name": "get_login_qrcode",
-        "description": "登录流程第 1/3 步：获取闲鱼登录二维码。工具会返回文本内容块，以及可直接展示的 MCP image 内容块。文本主要字段：status、message、has_image、image_mime_type。仅当用户明确回复“已确认扫码”后，进入第 2/3 步并调用 check_login_scan_result(user_confirmed_scanned=true)。",
+        "description": "登录流程第 1/3 步：获取闲鱼登录二维码。返回一段文字说明和一个可直接展示的 MCP image 内容块，不返回 qrcode_base64 文本。用户明确回复“已确认扫码”后，再调用 check_login_scan_result(user_confirmed_scanned=true)。",
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -266,7 +258,7 @@ ACCOUNT_TOOLS = [
     },
     {
         "name": "check_login_scan_result",
-        "description": "登录流程第 2/3 步与第 3/3 步共用本工具。第 2/3 步：用户首次扫码并明确回复“已确认扫码”后调用，检查登录状态。第 3/3 步：若返回 status=need_face_verify 且附带 MCP image 内容块，需展示该二维码并等待用户再次回复“已确认扫码”，然后再次调用本工具复查，直到 login_success 或超时/过期。文本主要字段：status、message、next_step、has_image、image_mime_type。",
+        "description": "登录流程第 2/3 步与第 3/3 步共用本工具。用户在明确回复“已确认扫码”后调用它检查状态；若触发人脸验证，会返回一段文字说明和一个 MCP image 内容块。返回内容不包含 qrcode_base64 文本。",
         "inputSchema": {
             "type": "object",
             "properties": {
