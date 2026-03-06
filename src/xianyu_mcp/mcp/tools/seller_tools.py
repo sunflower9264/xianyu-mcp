@@ -287,4 +287,30 @@ async def get_seller_profile(
 
 
 # Tool definitions for MCP registration
-SELLER_TOOLS: list[dict[str, Any]] = []
+SELLER_TOOLS = [
+    {
+        "name": "get_seller_profile",
+        "description": "获取卖家主页信息，包括卖家档案、在售商品和评价。为保证稳定性，最多返回10个商品和10条评价。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "user_id": {
+                    "type": "string",
+                    "description": "卖家用户 ID",
+                },
+                "include_items": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "是否包含商品列表（默认 True）",
+                },
+                "include_ratings": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "是否包含评价列表（默认 True）",
+                },
+            },
+            "required": ["user_id"],
+        },
+        "handler": get_seller_profile,
+    },
+]

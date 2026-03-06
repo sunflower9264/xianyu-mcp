@@ -752,6 +752,31 @@ async def delete_goods(item_id: str) -> dict[str, Any]:
 # Tool definitions for MCP registration
 SALE_TOOLS = [
     {
+        "name": "get_my_goods",
+        "description": "获取当前用户发布的商品列表。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "description": "商品状态筛选：selling(在售)、sold(已售)、taken_down(已下架)",
+                },
+                "page_num": {
+                    "type": "integer",
+                    "default": 1,
+                    "description": "页码（默认1）",
+                },
+                "page_size": {
+                    "type": "integer",
+                    "default": 20,
+                    "description": "每页数量（默认20）",
+                },
+            },
+            "required": [],
+        },
+        "handler": get_my_goods,
+    },
+    {
         "name": "publish_goods",
         "description": "在闲鱼发布新的在售商品，需提供图片、商品描述、价格和发货设置。主要返回字段：success、message、failed_reason（失败时）、form_screenshot、result_screenshot、shipping、images_count 等。",
         "inputSchema": {

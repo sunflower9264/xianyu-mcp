@@ -374,6 +374,109 @@ async def get_favorites(
 # Tool definitions for MCP registration
 GOODS_TOOLS = [
     {
+        "name": "search_goods",
+        "description": "按关键词搜索闲鱼商品。支持价格区间筛选、排序和快速筛选（个人闲置、验货宝、包邮等）。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "keyword": {
+                    "type": "string",
+                    "description": "搜索关键词",
+                },
+                "page_num": {
+                    "type": "integer",
+                    "default": 1,
+                    "description": "页码（默认1）",
+                },
+                "page_size": {
+                    "type": "integer",
+                    "default": 20,
+                    "description": "每页数量（默认20，最大50）",
+                },
+                "price_min": {
+                    "type": "number",
+                    "description": "最低价格",
+                },
+                "price_max": {
+                    "type": "number",
+                    "description": "最高价格",
+                },
+                "sort_field": {
+                    "type": "string",
+                    "description": "排序字段：create(最新)、modify(最近活跃)、credit(信用)、reduce(新降价)、price(价格)",
+                },
+                "sort_value": {
+                    "type": "string",
+                    "description": "排序方向：asc、desc、credit_desc",
+                },
+                "quick_filters": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "快速筛选：filterPersonal(个人闲置)、filterAppraise(验货宝)、filterFreePostage(包邮)、filterNew(全新)等",
+                },
+            },
+            "required": ["keyword"],
+        },
+        "handler": search_goods,
+    },
+    {
+        "name": "get_home_goods",
+        "description": "获取闲鱼首页推荐商品（猜你喜欢）。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "page_num": {
+                    "type": "integer",
+                    "default": 1,
+                    "description": "页码（默认1）",
+                },
+                "page_size": {
+                    "type": "integer",
+                    "default": 30,
+                    "description": "每页数量（默认30，最大50）",
+                },
+            },
+            "required": [],
+        },
+        "handler": get_home_goods,
+    },
+    {
+        "name": "get_goods_detail",
+        "description": "获取指定商品的详细信息。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "item_id": {
+                    "type": "string",
+                    "description": "商品 ID 或商品链接",
+                },
+            },
+            "required": ["item_id"],
+        },
+        "handler": get_goods_detail,
+    },
+    {
+        "name": "get_favorites",
+        "description": "获取当前用户的收藏列表。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "page_num": {
+                    "type": "integer",
+                    "default": 1,
+                    "description": "页码（默认1）",
+                },
+                "page_size": {
+                    "type": "integer",
+                    "default": 20,
+                    "description": "每页数量（默认20）",
+                },
+            },
+            "required": [],
+        },
+        "handler": get_favorites,
+    },
+    {
         "name": "add_favorite",
         "description": "将指定商品加入闲鱼收藏。主要返回字段：success、item_id、message（失败时可能包含 error）。",
         "inputSchema": {

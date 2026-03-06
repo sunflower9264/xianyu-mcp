@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     )
     screenshot_dir: Path = Field(
         default=Path("./screenshots"),
-        description="Directory to save screenshots"
+        description="Directory to save screenshots (Docker 环境请映射到宿主机)"
     )
 
     # Logging Configuration

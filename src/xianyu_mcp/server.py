@@ -16,17 +16,7 @@ from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.types import (
     AudioContent,
     CallToolResult,
-    Completion,
-    CompletionArgument,
-    CompletionContext,
-    EmbeddedResource,
-    GetPromptResult,
     ImageContent,
-    Prompt,
-    PromptReference,
-    Resource,
-    ResourceTemplate,
-    ResourceTemplateReference,
     TextContent,
     Tool,
 )
@@ -35,14 +25,6 @@ from xianyu_mcp.config import get_settings
 from xianyu_mcp.infrastructure.api import close_api_client
 from xianyu_mcp.infrastructure.browser import get_browser_manager
 from xianyu_mcp.logging import init_logging
-from xianyu_mcp.mcp.context_features import (
-    complete_argument,
-    get_prompt_by_name,
-    list_prompt_definitions,
-    list_resource_template_definitions,
-    list_resources_definitions,
-    read_resource_by_uri,
-)
 from xianyu_mcp.mcp.tools import ALL_TOOLS
 
 # Initialize logging
@@ -165,50 +147,6 @@ async def list_tools() -> list[Tool]:
     """Return list of available tools."""
     logger.debug("Listing tools")
     return _get_tool_definitions()
-
-
-@server.list_resources()
-async def list_resources() -> list[Resource]:
-    """Return list of available resources."""
-    logger.debug("Listing resources")
-    return list_resources_definitions()
-
-
-@server.list_resource_templates()
-async def list_resource_templates() -> list[ResourceTemplate]:
-    """Return list of available resource templates."""
-    logger.debug("Listing resource templates")
-    return list_resource_template_definitions()
-
-
-@server.read_resource()
-async def read_resource(uri) -> list:
-    """Read resource contents by URI."""
-    return await read_resource_by_uri(str(uri))
-
-
-@server.list_prompts()
-async def list_prompts() -> list[Prompt]:
-    """Return list of available prompts."""
-    logger.debug("Listing prompts")
-    return list_prompt_definitions()
-
-
-@server.get_prompt()
-async def get_prompt(name: str, arguments: dict[str, str] | None) -> GetPromptResult:
-    """Build prompt messages by name and arguments."""
-    logger.info(f"Prompt requested: {name} with arguments: {arguments}")
-    return await get_prompt_by_name(name=name, arguments=arguments)
-
-
-@server.completion()
-async def completion(
-    ref: PromptReference | ResourceTemplateReference,
-    argument: CompletionArgument,
-    context: CompletionContext | None = None,
-) -> Completion | None:
-    """Provide completion candidates for prompt and resource template arguments."""
-    return await complete_argument(ref=ref, argument=argument, context=context)
 
 
 @server.call_tool()

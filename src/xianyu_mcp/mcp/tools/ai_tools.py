@@ -273,4 +273,20 @@ async def build_analysis_prompt(item_id: str) -> dict[str, Any]:
 
 
 # Tool definitions for MCP registration
-AI_TOOLS: list[dict[str, Any]] = []
+AI_TOOLS = [
+    {
+        "name": "analyze_goods",
+        "description": "对闲鱼商品进行深度风险与价格分析。返回分析提示词和商品数据，包含价格评估、卖家可信度、商品真实性、交易风险等维度。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "item_id": {
+                    "type": "string",
+                    "description": "商品 ID 或商品链接",
+                },
+            },
+            "required": ["item_id"],
+        },
+        "handler": build_analysis_prompt,
+    },
+]

@@ -1,12 +1,10 @@
 """Account-related MCP tools."""
 
-import base64
-import mimetypes
 import time
 from pathlib import Path
 from typing import Any
 
-from mcp.types import ImageContent, TextContent
+from mcp.types import TextContent
 
 from xianyu_mcp.infrastructure.browser import (
     get_browser_manager,
@@ -26,26 +24,29 @@ LOGIN_TIMEOUT_SECONDS = 300  # 5 minutes
 def _build_qrcode_response(
     text: str,
     image_path: str | None,
-) -> list[TextContent | ImageContent]:
-    """Build MCP text/image content blocks for QR-code style responses."""
+) -> list[TextContent]:
+    """Build MCP text content with QR code file path.
+
+    Args:
+        text: The text message to display to user.
+        image_path: The actual file path where the QR code image is saved.
+    """
     if not image_path:
         return [TextContent(type="text", text=text)]
 
     try:
-        file_path = Path(image_path).resolve()
+        file_path = Path(image_path)
+        # Check if the file exists
         if not file_path.exists():
-            return [TextContent(type="text", text=f"{text}\n\n二维码文件不存在，无法返回图片内容。")]
+            return [TextContent(type="text", text=f"{text}\n\n二维码文件不存在: {file_path}")]
 
-        image_bytes = file_path.read_bytes()
-        encoded_data = base64.b64encode(image_bytes).decode("ascii")
-        mime_type = mimetypes.guess_type(file_path.name)[0] or "image/png"
-        return [
-            TextContent(type="text", text=text),
-            ImageContent(type="image", data=encoded_data, mimeType=mime_type),
-        ]
+        # Build path hint - tell user to find the file in project's screenshots directory
+        path_hint = f"\n\n请打开项目目录下 screenshots 文件夹中的图片并用闲鱼 App 扫码（二维码文件名：{file_path.name}）"
+
+        return [TextContent(type="text", text=text + path_hint)]
     except Exception as e:
-        logger.warning(f"Failed to encode QR code image for MCP response: {e}")
-        return [TextContent(type="text", text=f"{text}\n\n图片编码失败: {e}")]
+        logger.warning(f"Failed to get QR code path: {e}")
+        return [TextContent(type="text", text=f"{text}\n\n获取二维码路径失败: {e}")]
 
 
 async def check_login_status() -> dict[str, Any]:
@@ -78,7 +79,7 @@ async def check_login_status() -> dict[str, Any]:
 
 
 async def get_login_qrcode() -> Any:
-    """获取闲鱼登录二维码，返回 MCP 文本和图片内容块。"""
+    """获取闲鱼登录二维码，二维码图片会保存到文件并返回宿主机路径。请用户打开该路径的图片并用闲鱼 App 扫码。"""
     global _qrcode_generated_at
     logger.info("Tool called: get_login_qrcode")
 
@@ -95,7 +96,7 @@ async def get_login_qrcode() -> Any:
 
         result_text = (
             "请使用闲鱼 App 在 5 分钟内扫码登录。\n\n"
-            "请直接展示当前工具返回的二维码图片，不要手动做 base64 解码或落盘。\n\n"
+            "请打开下方二维码图片并用闲鱼 App 扫码。\n\n"
             "当用户明确回复“已确认扫码”后，调用 "
             "check_login_scan_result(user_confirmed_scanned=true)。"
         )
@@ -110,11 +111,12 @@ async def get_login_qrcode() -> Any:
 
 
 async def check_login_scan_result(user_confirmed_scanned: bool = False) -> Any:
-    """检查扫码登录结果，若触发人脸识别则返回 MCP 文本和图片内容块。"""
+    """检查扫码登录结果。若触发人脸识别，人脸二维码图片会保存到文件并返回宿主机路径。返回内容中的 qrcode_path 字段为人脸二维码的宿主机路径。"""
     logger.info(
         "Tool called: check_login_scan_result "
         f"(user_confirmed_scanned={user_confirmed_scanned})"
     )
+
     warning_prefix = None
     if not user_confirmed_scanned:
         logger.warning(
@@ -158,7 +160,7 @@ async def check_login_scan_result(user_confirmed_scanned: bool = False) -> Any:
         if status_value == "need_face_verify":
             result_text = (
                 f"当前状态：{status_value}\n{result_message}\n\n"
-                "请直接展示当前工具返回的人脸识别二维码图片，不要手动做 base64 解码或落盘。\n\n"
+                "请打开项目目录下 screenshots 文件夹中的人脸验证二维码图片并完成验证。\n\n"
                 "当用户明确回复“已确认扫码”后，再次调用 "
                 "check_login_scan_result(user_confirmed_scanned=true)。"
             )
@@ -248,7 +250,7 @@ ACCOUNT_TOOLS = [
     },
     {
         "name": "get_login_qrcode",
-        "description": "登录流程第 1/3 步：获取闲鱼登录二维码。返回一段文字说明和一个可直接展示的 MCP image 内容块，不返回 qrcode_base64 文本。用户明确回复“已确认扫码”后，再调用 check_login_scan_result(user_confirmed_scanned=true)。",
+        "description": "登录流程第 1/3 步：获取闲鱼登录二维码。二维码图片会保存到项目目录的 screenshots 文件夹（Docker 环境请将此目录映射到宿主机）。请告知用户打开该图片并用闲鱼 App 扫码。用户明确回复“已确认扫码”后，再调用 check_login_scan_result(user_confirmed_scanned=true)。",
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -258,7 +260,7 @@ ACCOUNT_TOOLS = [
     },
     {
         "name": "check_login_scan_result",
-        "description": "登录流程第 2/3 步与第 3/3 步共用本工具。用户在明确回复“已确认扫码”后调用它检查状态；若触发人脸验证，会返回一段文字说明和一个 MCP image 内容块。返回内容不包含 qrcode_base64 文本。",
+        "description": "登录流程第 2/3 步与第 3/3 步共用本工具。用户在明确回复“已确认扫码”后调用它检查状态；若触发人脸验证，人脸二维码图片会保存到项目目录的 screenshots 文件夹（Docker 环境请将此目录映射到宿主机）。请告知用户打开该图片并完成验证。",
         "inputSchema": {
             "type": "object",
             "properties": {
