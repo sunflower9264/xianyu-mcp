@@ -1,19 +1,19 @@
 # xianyu-mcp
 
-`xianyu-mcp` 是一个面向 MCP 客户端使用者的闲鱼 MCP Server。它通过 Playwright 和闲鱼网页能力，提供登录、商品发布、收藏管理、商品查询、卖家主页读取、截图调试等能力。
+`xianyu-mcp` 是一个面向 MCP 客户端使用者的闲鱼 MCP Server。它通过 Playwright 和闲鱼网页能力，提供登录、商品发布、收藏管理、商品查询、卖家主页读取等能力。
 
 你可以把它接入支持 MCP 的客户端，例如 Codex、Claude Code、MCP Inspector，或任何兼容 `stdio` / `streamable_http` 的 MCP 工具。
 
 ## 它能做什么
 
 - 登录闲鱼账号，获取扫码二维码并轮询登录结果
+- 登录二维码以 base64 返回，便于客户端直接展示
 - 发布商品、下架商品、删除商品
 - 添加收藏、取消收藏
-- 截图当前页面，便于排查登录或发布问题
 - 通过 `resources` / `resource templates` 读取商品、收藏、我的商品、卖家主页等数据
 - 通过 `prompt` 生成商品分析提示词
 
-当前项目实际注册了 **10 个 MCP tools**。
+当前项目实际注册了 **9 个 MCP tools**。
 
 ## 环境要求
 
@@ -182,13 +182,9 @@ http://127.0.0.1:18000/mcp
 ### 账号登录
 
 - `check_login_status`：检查当前是否已登录
-- `get_login_qrcode`：获取登录二维码
-- `check_login_scan_result`：检查扫码结果
+- `get_login_qrcode`：获取登录二维码（返回 `qrcode_base64`）
+- `check_login_scan_result`：检查扫码结果（人脸验证场景返回 `qrcode_base64`）
 - `logout`：退出登录并清理本地会话
-
-### 调试
-
-- `screenshot`：截图当前登录页，或指定 URL 的页面
 
 ### 收藏管理
 
@@ -230,5 +226,5 @@ http://127.0.0.1:18000/mcp
 - 优先把它作为 `stdio` 服务接入本地 MCP 客户端
 - 如果需要给多个客户端或远程网关复用，再改用 `streamable_http`
 - 首次启动会拉起 Playwright/Chromium，客户端的启动超时建议适当放宽
-- 登录、截图、发布商品这类依赖页面状态的操作，建议先确认账号已登录
+- 登录、发布商品这类依赖页面状态的操作，建议先确认账号已登录
 - 不考虑制作购买和聊天的工具。
