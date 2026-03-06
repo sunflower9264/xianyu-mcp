@@ -47,9 +47,9 @@ Windows CMD：
 
 ## 快速开始
 
-### 方式一：作为本地 `stdio` MCP Server 运行
+### 方式一：默认作为 `streamable_http` MCP Server 运行
 
-这是大多数本地 MCP 客户端最常见的接法。
+现在默认启动方式是 `streamable_http`，适合本地常驻服务和多个客户端复用。
 
 ```sh
 xianyu-mcp
@@ -61,17 +61,20 @@ xianyu-mcp
 python -m xianyu_mcp.server
 ```
 
-### 方式二：作为 `streamable_http` MCP Server 运行
+默认地址为：
 
-推荐把配置写入 `.env`，避免依赖不同系统的命令行环境变量写法。
+```text
+http://127.0.0.1:18000/mcp
+```
+
+### 方式二：作为本地 `stdio` MCP Server 运行
+
+如果你要把它交给本地 MCP 客户端以子进程方式拉起，可以显式切回 `stdio`。
 
 示例：
 
 ```env
-MCP_TRANSPORT=streamable_http
-MCP_HTTP_HOST=127.0.0.1
-MCP_HTTP_PORT=18000
-MCP_STREAMABLE_HTTP_PATH=/mcp
+MCP_TRANSPORT=stdio
 ```
 
 然后启动服务：
@@ -80,11 +83,7 @@ MCP_STREAMABLE_HTTP_PATH=/mcp
 xianyu-mcp
 ```
 
-启动后默认地址为：
-
-```text
-http://127.0.0.1:18000/mcp
-```
+如果你的客户端直接托管这个进程，通常不需要再额外配置 HTTP 地址。
 
 ## Docker 运行
 
@@ -133,7 +132,7 @@ docker compose down
 | `AUTO_SCREENSHOT` | `false` | 是否自动截图 |
 | `SCREENSHOT_DIR` | `./screenshots` | 截图目录 |
 | `LOG_LEVEL` | `INFO` | 日志级别 |
-| `MCP_TRANSPORT` | `stdio` | 传输模式：`stdio` 或 `streamable_http` |
+| `MCP_TRANSPORT` | `streamable_http` | 传输模式：`stdio` 或 `streamable_http` |
 | `MCP_TOOL_TIMEOUT_SECONDS` | `10` | 单个工具调用超时，单位秒 |
 | `MCP_HTTP_HOST` | `127.0.0.1` | HTTP 模式监听地址 |
 | `MCP_HTTP_PORT` | `18000` | HTTP 模式监听端口 |
@@ -157,7 +156,13 @@ HEADLESS=false
 
 ### MCP Inspector
 
-调试本地 `stdio` 服务：
+调试本地 `stdio` 服务时，先在 `.env` 中设置：
+
+```env
+MCP_TRANSPORT=stdio
+```
+
+然后执行：
 
 ```sh
 npx @modelcontextprotocol/inspector python -m xianyu_mcp.server
@@ -223,8 +228,8 @@ http://127.0.0.1:18000/mcp
 
 ## 使用建议
 
-- 优先把它作为 `stdio` 服务接入本地 MCP 客户端
-- 如果需要给多个客户端或远程网关复用，再改用 `streamable_http`
+- 默认优先使用 `streamable_http`，便于常驻运行和给多个客户端复用
+- 如果客户端更适合自行拉起子进程，再显式切换到 `stdio`
 - 首次启动会拉起 Playwright/Chromium，客户端的启动超时建议适当放宽
 - 登录、发布商品这类依赖页面状态的操作，建议先确认账号已登录
 - 不考虑制作购买和聊天的工具。

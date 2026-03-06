@@ -63,7 +63,7 @@ class Settings(BaseSettings):
 
     # MCP Configuration
     mcp_transport: Literal["stdio", "streamable_http"] = Field(
-        default="stdio",
+        default="streamable_http",
         description="MCP transport mode: stdio or streamable_http"
     )
     mcp_tool_timeout_seconds: float = Field(
