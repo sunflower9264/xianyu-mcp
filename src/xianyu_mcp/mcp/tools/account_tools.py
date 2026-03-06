@@ -113,6 +113,10 @@ async def get_login_qrcode() -> Any:
         result = {
             "message": message,
             "status": "qrcode_ready",
+            "next_step": (
+                "请直接向用户展示二维码图片。"
+                "当用户明确回复“已确认扫码”后，调用 check_login_scan_result(user_confirmed_scanned=true)。"
+            ),
         }
         return _build_image_response(result, image_path)
 
@@ -171,6 +175,21 @@ async def check_login_scan_result(user_confirmed_scanned: bool = False) -> Any:
         }
         if warning_prefix and result["status"] != "login_success":
             result["message"] = f"{warning_prefix}{result['message']}"
+
+        if result["status"] == "need_face_verify":
+            result["next_step"] = (
+                "登录流程第 3/3 步：请直接向用户展示本次返回的人脸识别二维码图片。"
+                "当用户明确回复“已确认扫码”后，再次调用 check_login_scan_result(user_confirmed_scanned=true) 复查。"
+            )
+        elif result["status"] in {"waiting_scan", "waiting_auto_login"}:
+            result["next_step"] = (
+                "等待用户明确回复“已确认扫码”后，"
+                "再次调用 check_login_scan_result(user_confirmed_scanned=true)。"
+            )
+        elif result["status"] == "login_success":
+            result["next_step"] = "登录已完成，可继续调用其他业务工具。"
+        elif result["status"] in {"qr_expired", "timeout"}:
+            result["next_step"] = "请重新调用 get_login_qrcode 获取新的二维码。"
 
         # Close browser on login success
         if result["status"] == "login_success":
@@ -242,7 +261,7 @@ ACCOUNT_TOOLS = [
     },
     {
         "name": "get_login_qrcode",
-        "description": "获取闲鱼登录二维码。优先返回 MCP image 内容块；用户扫码后调用 check_login_scan_result 检查结果。",
+        "description": "登录流程第 1/3 步：获取闲鱼登录二维码并直接展示给用户（优先返回 MCP image 内容块）。仅当用户明确回复“已确认扫码”后，进入第 2/3 步并调用 check_login_scan_result(user_confirmed_scanned=true)。",
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -252,14 +271,14 @@ ACCOUNT_TOOLS = [
     },
     {
         "name": "check_login_scan_result",
-        "description": "检查扫码登录结果，建议用户确认已扫码后调用。",
+        "description": "登录流程第 2/3 步与第 3/3 步共用本工具。第 2/3 步：用户首次扫码并明确回复“已确认扫码”后调用，检查登录状态。第 3/3 步：若返回 status=need_face_verify 且带二维码，需展示该二维码并等待用户再次回复“已确认扫码”，然后再次调用本工具复查，直到 login_success 或超时/过期。",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "user_confirmed_scanned": {
                     "type": "boolean",
                     "default": False,
-                    "description": '建议在用户明确回复“已扫码”后设为 true。为 false 时也会执行真实检查，但可能附带提醒信息。',
+                    "description": '建议在用户明确回复“已确认扫码”后设为 true。为 false 时也会执行真实检查，但可能附带提醒信息。',
                 },
             },
             "required": [],
